@@ -6,3 +6,4 @@ from .mlp_net import MLPNet
 from .squeezenext import SqueezeNext
 from .vgg import vgg16
 from .resnet import ResNet
+from .MNIST_model import MNIST_model

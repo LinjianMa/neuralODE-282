@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class MLPNet(nn.Module):
     def __init__(self, num_classes):
         super(MLPNet, self).__init__()

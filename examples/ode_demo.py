@@ -8,7 +8,13 @@ import torch.nn as nn
 import torch.optim as optim
 
 parser = argparse.ArgumentParser('ODE demo')
-parser.add_argument('--method', type=str, choices=['dopri5', 'adams'], default='dopri5')
+parser.add_argument(
+    '--method',
+    type=str,
+    choices=[
+        'dopri5',
+        'adams'],
+    default='dopri5')
 parser.add_argument('--data_size', type=int, default=1000)
 parser.add_argument('--batch_time', type=int, default=10)
 parser.add_argument('--batch_size', type=int, default=20)
@@ -24,7 +30,8 @@ if args.adjoint:
 else:
     from torchdiffeq import odeint
 
-device = torch.device('cuda:' + str(args.gpu) if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:' + str(args.gpu)
+                      if torch.cuda.is_available() else 'cpu')
 
 true_y0 = torch.tensor([[2., 0.]])
 t = torch.linspace(0., 25., args.data_size)
@@ -42,10 +49,18 @@ with torch.no_grad():
 
 
 def get_batch():
-    s = torch.from_numpy(np.random.choice(np.arange(args.data_size - args.batch_time, dtype=np.int64), args.batch_size, replace=False))
+    s = torch.from_numpy(
+        np.random.choice(
+            np.arange(
+                args.data_size -
+                args.batch_time,
+                dtype=np.int64),
+            args.batch_size,
+            replace=False))
     batch_y0 = true_y[s]  # (M, D)
     batch_t = t[:args.batch_time]  # (T)
-    batch_y = torch.stack([true_y[s + i] for i in range(args.batch_time)], dim=0)  # (T, M, D)
+    batch_y = torch.stack([true_y[s + i]
+                           for i in range(args.batch_time)], dim=0)  # (T, M, D)
     return batch_y0, batch_t, batch_y
 
 
@@ -72,8 +87,23 @@ def visualize(true_y, pred_y, odefunc, itr):
         ax_traj.set_title('Trajectories')
         ax_traj.set_xlabel('t')
         ax_traj.set_ylabel('x,y')
-        ax_traj.plot(t.numpy(), true_y.numpy()[:, 0, 0], t.numpy(), true_y.numpy()[:, 0, 1], 'g-')
-        ax_traj.plot(t.numpy(), pred_y.numpy()[:, 0, 0], '--', t.numpy(), pred_y.numpy()[:, 0, 1], 'b--')
+        ax_traj.plot(
+            t.numpy(), true_y.numpy()[
+                :, 0, 0], t.numpy(), true_y.numpy()[
+                :, 0, 1], 'g-')
+        ax_traj.plot(
+            t.numpy(),
+            pred_y.numpy()[
+                :,
+                0,
+                0],
+            '--',
+            t.numpy(),
+            pred_y.numpy()[
+                :,
+                0,
+                1],
+            'b--')
         ax_traj.set_xlim(t.min(), t.max())
         ax_traj.set_ylim(-2, 2)
         ax_traj.legend()
@@ -93,12 +123,14 @@ def visualize(true_y, pred_y, odefunc, itr):
         ax_vecfield.set_ylabel('y')
 
         y, x = np.mgrid[-2:2:21j, -2:2:21j]
-        dydt = odefunc(0, torch.Tensor(np.stack([x, y], -1).reshape(21 * 21, 2))).cpu().detach().numpy()
+        dydt = odefunc(0, torch.Tensor(
+            np.stack([x, y], -1).reshape(21 * 21, 2))).cpu().detach().numpy()
         mag = np.sqrt(dydt[:, 0]**2 + dydt[:, 1]**2).reshape(-1, 1)
         dydt = (dydt / mag)
         dydt = dydt.reshape(21, 21, 2)
 
-        ax_vecfield.streamplot(x, y, dydt[:, :, 0], dydt[:, :, 1], color="black")
+        ax_vecfield.streamplot(
+            x, y, dydt[:, :, 0], dydt[:, :, 1], color="black")
         ax_vecfield.set_xlim(-2, 2)
         ax_vecfield.set_ylim(-2, 2)
 
@@ -173,7 +205,9 @@ if __name__ == '__main__':
             with torch.no_grad():
                 pred_y = odeint(func, true_y0, t)
                 loss = torch.mean(torch.abs(pred_y - true_y))
-                print('Iter {:04d} | Total Loss {:.6f}'.format(itr, loss.item()))
+                print(
+                    'Iter {:04d} | Total Loss {:.6f}'.format(
+                        itr, loss.item()))
                 visualize(true_y, pred_y, func, ii)
                 ii += 1
 

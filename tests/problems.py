@@ -27,9 +27,8 @@ class SineODE(torch.nn.Module):
         return 2 * y / t + t**4 * torch.sin(2 * t) - t**2 + 4 * t**3
 
     def y_exact(self, t):
-        return -0.5 * t**4 * torch.cos(2 * t) + 0.5 * t**3 * torch.sin(2 * t) + 0.25 * t**2 * torch.cos(
-            2 * t
-        ) - t**3 + 2 * t**4 + (math.pi - 0.25) * t**2
+        return -0.5 * t**4 * torch.cos(2 * t) + 0.5 * t**3 * torch.sin(
+            2 * t) + 0.25 * t**2 * torch.cos(2 * t) - t**3 + 2 * t**4 + (math.pi - 0.25) * t**2
 
 
 class LinearODE(torch.nn.Module):
@@ -50,8 +49,13 @@ class LinearODE(torch.nn.Module):
         A_np = self.A.detach().cpu().numpy()
         ans = []
         for t_i in t:
-            ans.append(np.matmul(scipy.linalg.expm(A_np * t_i), self.initial_val))
-        return torch.stack([torch.tensor(ans_) for ans_ in ans]).reshape(len(t), self.dim)
+            ans.append(
+                np.matmul(
+                    scipy.linalg.expm(
+                        A_np * t_i),
+                    self.initial_val))
+        return torch.stack([torch.tensor(ans_)
+                            for ans_ in ans]).reshape(len(t), self.dim)
 
 
 PROBLEMS = {'constant': ConstantODE, 'linear': LinearODE, 'sine': SineODE}
@@ -66,7 +70,8 @@ def construct_problem(device, npts=10, ode='constant', reverse=False):
 
     def _flip(x, dim):
         indices = [slice(None)] * x.dim()
-        indices[dim] = torch.arange(x.size(dim) - 1, -1, -1, dtype=torch.long, device=x.device)
+        indices[dim] = torch.arange(
+            x.size(dim) - 1, -1, -1, dtype=torch.long, device=x.device)
         return x[tuple(indices)]
 
     if reverse:

@@ -1,3 +1,8 @@
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.nn as nn
+import torch
+import matplotlib.pyplot as plt
 import os
 import argparse
 import logging
@@ -6,11 +11,6 @@ import numpy as np
 import numpy.random as npr
 import matplotlib
 matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 
 
 parser = argparse.ArgumentParser()
@@ -49,7 +49,7 @@ def generate_spiral2d(nspiral=1000,
       a, b: parameters of the Archimedean spiral
       savefig: plot the ground truth for sanity check
 
-    Returns: 
+    Returns:
       Tuple where first element is true trajectory of size (nspiral, ntotal, 2),
       second element is noisy observations of size (nspiral, nsample, 2),
       third element is timestamps of size (ntotal,),
@@ -226,7 +226,13 @@ if __name__ == '__main__':
     func = LatentODEfunc(latent_dim, nhidden).to(device)
     rec = RecognitionRNN(latent_dim, obs_dim, rnn_nhidden, nspiral).to(device)
     dec = Decoder(latent_dim, obs_dim, nhidden).to(device)
-    params = (list(func.parameters()) + list(dec.parameters()) + list(rec.parameters()))
+    params = (
+        list(
+            func.parameters()) +
+        list(
+            dec.parameters()) +
+        list(
+            rec.parameters()))
     optimizer = optim.Adam(params, lr=args.lr)
     loss_meter = RunningAverageMeter()
 
@@ -275,7 +281,9 @@ if __name__ == '__main__':
             optimizer.step()
             loss_meter.update(loss.item())
 
-            print('Iter: {}, running avg elbo: {:.4f}'.format(itr, -loss_meter.avg))
+            print(
+                'Iter: {}, running avg elbo: {:.4f}'.format(
+                    itr, -loss_meter.avg))
 
     except KeyboardInterrupt:
         if args.train_dir is not None:

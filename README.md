@@ -14,3 +14,11 @@ visdom -port XXXXX
 
 python visdom_pull_server.py -port XXXXX
 ```
+
+## Others
+Run
+```
+autopep8 --in-place --aggressive --aggressive *.py
+```
+
+before any commit.

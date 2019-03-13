@@ -177,7 +177,10 @@ if __name__ == '__main__':
         'mnist': MNIST_model(args),
     }
     model, odelayer_index = model_list[args.dataset]
-    model = model.to(device)
+    # model = model.to(device)
+    if args.gpu:
+        model = model.cuda()
+        # model = torch.nn.DataParallel(model)
 
     logger.info(model)
     logger.info('Number of parameters: {}'.format(count_parameters(model)))
@@ -268,8 +271,9 @@ if __name__ == '__main__':
 
         optimizer.zero_grad()
         x, y = data_gen.__next__()
-        x = x.to(device)
-        y = y.to(device)
+        if args.gpu:
+            x = x.cuda()
+            y = y.cuda()
         logits = model(x)
         loss = criterion(logits, y)
         train_loss += loss
@@ -296,7 +300,7 @@ if __name__ == '__main__':
             epoch += 1
 
             with torch.no_grad():
-                val_acc = accuracy(model, test_loader, device)
+                val_acc = accuracy(model, test_loader, args)
                 logger.info(
                     "Epoch {:04d} | Time {:.3f} ({:.3f}) | NFE-F {:.1f} | NFE-B {:.1f} | "
                     "Test Acc {:.4f} | Training Loss {:.4f}".format(

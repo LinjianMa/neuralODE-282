@@ -8,12 +8,15 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
+from pathlib import Path
+import csv
+
 
 from os.path import dirname, join
 from util.utils import get_dataset, RunningAverageMeter, inf_generator, learning_rate_with_decay, one_hot, accuracy, count_parameters
 from util.transforms import ToDouble, Identity
 
-parent_dir = join(dirname(__file__), os.pardir)
+parent_dir = dirname(__file__)
 results_dir = join(parent_dir, 'results')
 
 logger = logging.getLogger('neuralODE')
@@ -129,6 +132,25 @@ def add_general_arguments(parser):
         metavar='W',
         help='Weight decay (default: 1e-4)')
 
+def get_file_prefix(args):
+        return "-".join(filter(None, [
+            args.model_prefix, args.dataset, args.network, 'LR' + str(args.lr)
+        ]))
+
+def save(epoch, iterations, model, optimizer, args):
+    state = {
+        'epoch': epoch,
+        'iterations': iterations,
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+    }
+    state_string = "-".join(
+        k + "=" + str(v) for k, v in state.items() if k == 'epoch')
+
+    location = join(results_dir, get_file_prefix(args) + '-s-' + state_string)
+    torch.save(state, location)
+    logger.info(f'Saved to {location}')
+
 
 if __name__ == '__main__':
 
@@ -136,7 +158,8 @@ if __name__ == '__main__':
     add_general_arguments(parser)
     args, _ = parser.parse_known_args()
 
-    logger.info(args)
+    for arg in vars(args):
+        logger.info(f'{arg} {getattr(args, arg)}')
 
     device = torch.device('cuda:' + str(args.gpu)
                           if torch.cuda.is_available() else 'cpu')
@@ -163,6 +186,7 @@ if __name__ == '__main__':
 
     transformer = ToDouble if args.double else Identity
 
+    # Get dataset
     train_dataset, test_dataset, num_classes = get_dataset(
         args.dataset, tensor_type_transformer=transformer)
 
@@ -174,6 +198,7 @@ if __name__ == '__main__':
     data_gen = inf_generator(train_loader)
     batches_per_epoch = len(train_loader)
 
+    # Initialize optimizer 
     lr_fn = learning_rate_with_decay(
         args.lr,
         args.batch_size,
@@ -195,10 +220,51 @@ if __name__ == '__main__':
     b_nfe_meter = RunningAverageMeter()
     end = time.time()
 
-    for itr in range(args.epochs * batches_per_epoch):
+    # Set up CSV logging
+    csv_path = join(results_dir, f'{get_file_prefix(args)}.csv')
+    is_new_log = not Path(csv_path).exists()
+    csv_file = open(csv_path, 'a', newline='')
+    writer = csv.writer(
+        csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    if is_new_log:
+        writer.writerow([
+            'epoch', 'iterations', 'train_loss', 'test_accuracy'
+        ])
+
+    # Set up normal logging
+    root_logger = logging.getLogger()
+    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
+    file_handler = logging.FileHandler(log_path)
+    root_logger.addHandler(file_handler)
+
+    # Create/load state
+    epoch = 0
+    iterations = 0
+    if args.load_model is not '':
+        try:
+            state_file = args.load_model
+            state = torch.load(state_file)
+
+            epoch = state['epoch']
+            iterations = state['iterations']
+
+            model.load_state_dict(state['model'])
+
+            logger.info(f'Loaded state from file {state_file}')
+        except FileNotFoundError:
+            raise FileNotFoundError(f'No model exist on: {args.load_model}')
+
+    train_loss = 0.0
+
+    logger.info(f'Numer of batches per epoch: {batches_per_epoch}')
+    while iterations < (args.epochs * batches_per_epoch):
+
+        logger.info(f'Iteration number: {iterations}')
+
+        iterations += 1
 
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr_fn(itr)
+            param_group['lr'] = lr_fn(iterations)
 
         optimizer.zero_grad()
         x, y = data_gen.__next__()
@@ -206,20 +272,18 @@ if __name__ == '__main__':
         y = y.to(device)
         logits = model(x)
         loss = criterion(logits, y)
+        train_loss += loss
 
         if is_odenet:
-            nfe_forward = model[odelayer_index].nfe # feature_layers[0].nfe
-            #feature_layers[0].nfe = 0
+            nfe_forward = model[odelayer_index].nfe 
             model[odelayer_index].nfe = 0
 
         loss.backward()
         optimizer.step()
 
         if is_odenet:
-            nfe_backward = model[odelayer_index].nfe # feature_layers[0].nfe
-            # feature_layers[0].nfe = 0
+            nfe_backward = model[odelayer_index].nfe 
             model[odelayer_index].nfe = 0
-
 
         batch_time_meter.update(time.time() - end)
         if is_odenet:
@@ -227,19 +291,29 @@ if __name__ == '__main__':
             b_nfe_meter.update(nfe_backward)
         end = time.time()
 
-        if itr % batches_per_epoch == 0:
+        if iterations % batches_per_epoch == 0:
+            train_loss /= batches_per_epoch
+            epoch += 1
+
             with torch.no_grad():
                 val_acc = accuracy(model, test_loader, device)
-                if val_acc > best_acc:
-                    torch.save({'state_dict': model.state_dict(), 'args': args}, os.path.join(
-                        args.save, 'model.pth'))
-                    best_acc = val_acc
                 logger.info(
                     "Epoch {:04d} | Time {:.3f} ({:.3f}) | NFE-F {:.1f} | NFE-B {:.1f} | "
-                    "Test Acc {:.4f}".format(
-                        itr // batches_per_epoch,
+                    "Test Acc {:.4f} | Training Loss {:.4f}".format(
+                        iterations // batches_per_epoch,
                         batch_time_meter.val,
                         batch_time_meter.avg,
                         f_nfe_meter.avg,
                         b_nfe_meter.avg,
-                        val_acc))
+                        val_acc, 
+                        train_loss))
+
+            writer.writerow([
+                f'{epoch}', f'{iterations}', f'{train_loss}', f'{val_acc}'
+            ])
+
+            train_loss = 0.
+
+            # Save state to file
+            if epoch % args.save_interval == 0:
+                save(epoch, iterations, model, optimizer, args)

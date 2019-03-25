@@ -175,6 +175,7 @@ if __name__ == '__main__':
     from models import MNIST_model
     model_list = {
         'mnist': MNIST_model(args),
+        'cifar10': CIFAR10_model_20(args),
     }
     model, odelayer_index = model_list[args.dataset]
     model = model.to(device)
@@ -276,6 +277,7 @@ if __name__ == '__main__':
 
         if is_odenet:
             nfe_forward = model[odelayer_index].nfe 
+            logger.info(f'nfe_forward is: {nfe_forward}')
             model[odelayer_index].nfe = 0
 
         loss.backward()
@@ -283,6 +285,7 @@ if __name__ == '__main__':
 
         if is_odenet:
             nfe_backward = model[odelayer_index].nfe 
+            logger.info(f'nfe_backward is: {nfe_backward}')
             model[odelayer_index].nfe = 0
 
         batch_time_meter.update(time.time() - end)

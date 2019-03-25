@@ -72,10 +72,11 @@ def one_hot(x, K):
     return np.array(x[:, None] == np.arange(K)[None, :], dtype=int)
 
 
-def accuracy(model, dataset_loader, device):
+def accuracy(model, dataset_loader, args):
     total_correct = 0
     for x, y in dataset_loader:
-        x = x.to(device)
+        if args.gpu:
+            x = x.cuda()
         y = one_hot(np.array(y.numpy()), 10)
 
         target_class = np.argmax(y, axis=1)

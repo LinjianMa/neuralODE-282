@@ -172,12 +172,12 @@ if __name__ == '__main__':
         from torchdiffeq import odeint
 
     # Load model. We import here because the default tensor type has been set
-    from models import MNIST_model
+    from models import MNIST_model, CIFAR10_model_20
     model_list = {
         'mnist': MNIST_model(args),
         'cifar10': CIFAR10_model_20(args),
     }
-    model, odelayer_index = model_list[args.dataset]
+    model, odelayer_indexes = model_list[args.dataset]
     # model = model.to(device)
     if args.gpu:
         model = model.cuda()
@@ -280,17 +280,23 @@ if __name__ == '__main__':
         train_loss += loss
 
         if is_odenet:
-            nfe_forward = model[odelayer_index].nfe 
+            nfe_forward = 0.
+            for index in odelayer_indexes:
+                nfe_forward += model[index].nfe
+                model[index].nfe = 0 
+            nfe_forward = nfe_forward / len(odelayer_indexes)
             logger.info(f'nfe_forward is: {nfe_forward}')
-            model[odelayer_index].nfe = 0
 
         loss.backward()
         optimizer.step()
 
         if is_odenet:
-            nfe_backward = model[odelayer_index].nfe 
+            nfe_backward = 0.
+            for index in odelayer_indexes:
+                nfe_backward += model[index].nfe
+                model[index].nfe = 0 
+            nfe_backward = nfe_backward / len(odelayer_indexes)
             logger.info(f'nfe_backward is: {nfe_backward}')
-            model[odelayer_index].nfe = 0
 
         batch_time_meter.update(time.time() - end)
         if is_odenet:

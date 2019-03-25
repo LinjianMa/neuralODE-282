@@ -7,3 +7,4 @@ from .squeezenext import SqueezeNext
 from .vgg import vgg16
 from .resnet import ResNet
 from .MNIST_model import MNIST_model
+from .CIFAR10_model_20 import CIFAR10_model_20

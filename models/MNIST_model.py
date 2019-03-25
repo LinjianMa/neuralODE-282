@@ -186,7 +186,8 @@ def MNIST_model(args):
             (1, 1)), Flatten(), nn.Linear(
                 64, 10)]
 
+    # TODO: here I just hard code the layer number that performs ODE
     return nn.Sequential(
         *downsampling_layers,
         *feature_layers,
-        *fc_layers), 7
+        *fc_layers), [7]

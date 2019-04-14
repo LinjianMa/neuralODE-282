@@ -8,6 +8,7 @@ from torch.autograd import Variable
 from util.transforms import Identity
 import logging
 import torch
+import os
 
 FORMAT = '[%(asctime)-15s %(filename)s:%(lineno)s] %(message)s'
 FORMAT_MINIMAL = '%(message)s'
@@ -16,6 +17,9 @@ logger = logging.getLogger('neuralODE')
 logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.DEBUG)
 
+def makedirs(dirname):
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
 
 class RunningAverageMeter(object):
     """Computes and stores the average and current value"""

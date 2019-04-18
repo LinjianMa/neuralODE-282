@@ -1,3 +1,4 @@
+
 import numpy as np
 import joblib
 
@@ -17,7 +18,7 @@ class ForecastRNN(nn.Module):
         self.rnn = nn.GRU(input_size=input_dim,
                           hidden_size=hidden_size,
                           num_layers=depth,
-                          dropout=False,
+                          dropout=0.,
                           bidirectional=False,  # would bidirectional help forecasting?
                           batch_first=True)
         self.sm = nn.LogSoftmax(dim=1)
@@ -183,6 +184,7 @@ class MultiOutputRNN(ForecastRNN):
         self.seq = sequence
         self.polynomial = polynomial
         self.degree = degree
+
         if self.polynomial:
             self.decoding_steps = self.degree+1
             self.polyval_layer = nn.Linear(self.decoding_steps*output_dim, output_len*output_dim)
@@ -192,10 +194,11 @@ class MultiOutputRNN(ForecastRNN):
             self.decoder = nn.GRU(input_size=hidden_size,
                                   hidden_size=hidden_size,
                                   num_layers=1,
-                                  dropout=False,
+                                  dropout=0.,
                                   bidirectional=False,
                                   batch_first=False)
-            self.decoder.cuda()
+            if self.cuda:
+                self.decoder.cuda()
             self.output = nn.Linear(hidden_size, output_dim)
         elif self.ar:
             output = [nn.Linear(hidden_size, output_dim)]
@@ -217,7 +220,11 @@ class MultiOutputRNN(ForecastRNN):
         if self.seq:
             y = []
             encoded = out_flat[None, :]
-            hidden = Variable(torch.zeros(encoded.data.shape)).cuda()
+
+            hidden = Variable(torch.zeros(encoded.data.shape))
+            if self.cuda:
+                hidden = hidden.cuda()
+
             for i in range(self.decoding_steps):
                 encoded, hidden = self.decoder(encoded, hidden)
                 pred = self.sm(self.output(encoded[0])).contiguous()
@@ -401,15 +408,19 @@ def get_loss(inp,
                                                      1), 
                                           list(np.array(lens_s)), 
                                           batch_first=True)
+
+    if cuda:
+        loss_weight = Variable(loss_weight.cuda())
+    else: 
+        loss_weight = Variable(loss_weight)
+
     if glucose_dat.real_values:
         yd_p, y_p, yd_f, y_f = gn(x, pred_len=0)
         y_p_flat = y_p.contiguous().view(-1, output_dim)
-        (y_p_nopad,
-         y_nopad,
-         y_real_nopad,
-         loss_weight_nopad) = remove_prediction_padding(prediction_distribution=y_p_flat,
+
+        (y_p_nopad,y_nopad,y_real_nopad,loss_weight_nopad) = remove_prediction_padding(prediction_distribution=y_p_flat,
                                                         target_value=out_s.view(-1),
-                                                        loss_weight=Variable(loss_weight.cuda()),
+                                                        loss_weight=loss_weight,
                                                         target_real_value=out_real_s)
         try:
             loss = criterion(y_p_nopad, y_nopad)
@@ -426,13 +437,15 @@ def get_loss(inp,
          y_real_nopad,
          loss_weight_nopad) = remove_prediction_padding(prediction_distribution=yd_p,
                                                         target_value=out_s,
-                                                        loss_weight=Variable(loss_weight.cuda()),
+                                                        loss_weight=loss_weight,
                                                         target_real_value=out_real_s)
         if glucose_dat.polynomial:
             # include MSE
             real_criterion = torch.nn.MSELoss()
-            coeffs = get_coeffs(yd_p_nopad.view(-1, len(glucose_dat.bins), yd_p_nopad.shape[-1]), glucose_dat.bins)
-            real_values = coeffs_to_values(coeffs)
+            coeffs = get_coeffs(yd_p_nopad.view(-1, len(glucose_dat.bins), yd_p_nopad.shape[-1]), 
+                                glucose_dat.bins, 
+                                cuda)
+            real_values = coeffs_to_values(coeffs, cuda)
             loss_real = real_criterion(real_values.view(-1), y_real_nopad.float()) * value_weight
             loss_dist = criterion(yd_p_nopad, y_nopad) * loss_weight_nopad
             loss = (1-value_ratio) * loss_dist + value_ratio * loss_real
@@ -447,17 +460,29 @@ def get_loss(inp,
     return loss.mean(), y_p
 
 
-def get_coeffs(dist, bins):
+def get_coeffs(dist, bins, cuda):
     prob = torch.exp(dist)
-    bin_vals = Variable(torch.from_numpy(np.array(bins)).float().cuda()).expand_as(prob).transpose(1, 2)
+    if cuda:
+        bin_vals = Variable(torch.from_numpy(np.array(bins)).float().cuda()).expand_as(prob).transpose(1, 2)
+    else:
+        bin_vals = Variable(torch.from_numpy(np.array(bins)).float()).expand_as(prob).transpose(1, 2)
+
     coeffs = torch.bmm(prob, bin_vals)  # includes false off-diag coeffs
-    real_coeffs = coeffs[torch.eye(len(bins)).expand_as(coeffs).byte().cuda()].view(-1, len(bins))  # extract diagonals
+    if cuda:
+        real_coeffs = coeffs[torch.eye(len(bins)).expand_as(coeffs).byte().cuda()].view(-1, len(bins))  # extract diagonals
+    else:
+        real_coeffs = coeffs[torch.eye(len(bins)).expand_as(coeffs).byte()].view(-1, len(bins))  # extract diagonals
+
     return real_coeffs
 
 
-def coeffs_to_values(coeffs):
+def coeffs_to_values(coeffs, cuda):
     degree = coeffs.shape[-1]
-    basis = Variable(torch.stack([torch.arange(0, 6) ** i for i in range(degree)]).cuda())
+    if cuda:
+        basis = Variable(torch.stack([torch.arange(0, 6) ** i for i in range(degree)]).cuda())
+    else: 
+        basis = Variable(torch.stack([torch.arange(0, 6) ** i for i in range(degree)]))
+
     return coeffs.view(-1, degree) @ basis
 
 
@@ -507,7 +532,7 @@ def make_model(config):
                           output_dim=config.output_dim,
                           hidden_size=config.hidden_size,
                           depth=config.depth,
-                          cuda=True)
+                          cuda=False)
     else:
         assert config.output_len == config.pred_len # could relax
         gn = MultiOutputRNN(input_dim=config.input_dim,
@@ -515,7 +540,7 @@ def make_model(config):
                             hidden_size=config.hidden_size,
                             output_len=config.output_len,
                             depth=config.depth,
-                            cuda=True,
+                            cuda=False,
                             autoregressive=config.autoregressive,
                             sequence=config.sequence,
                             polynomial=config.polynomial,

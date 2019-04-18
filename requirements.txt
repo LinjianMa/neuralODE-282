@@ -1,2 +1,6 @@
 torch
 torchvision
+sklearn
+xlrd
+joblib
+tensorboardX

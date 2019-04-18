@@ -12,7 +12,7 @@ from tqdm import tqdm
 import joblib
 
 # from forecast_code.lib.training 
-import model as forecast_model
+from .model import *
 
 
 class ExperimentTrainer:
@@ -21,7 +21,7 @@ class ExperimentTrainer:
     """
 
     def __init__(self, model, optimizer, criterion, name, model_dir, log_dir,
-                 load=False, load_epoch=None):
+                 load=False, load_epoch=None, cuda=False):
         """
         :param model: initialized model for training
         :param optimizer: initialized training optimizer
@@ -35,6 +35,7 @@ class ExperimentTrainer:
         self.name = name
         self.model_dir = model_dir
         self.log_dir = log_dir
+        self.cuda = cuda
 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
@@ -105,19 +106,19 @@ class ExperimentTrainer:
                                                             improvements=improvements)
             running_train_loss = 0
             for inp, out, out_real, lens in tqdm(data_train):
-                loss, y_p = forecast_model.get_loss(inp=inp,
-                                                    out=out,
-                                                    lens=lens,
-                                                    cuda=True,
-                                                    gn=self.model,
-                                                    glucose_dat=data,
-                                                    criterion=self.criterion,
-                                                    base=loss_weight_base,
-                                                    out_real=out_real,
-                                                    value_weight=value_weight,
-                                                    value_ratio=value_ratio)
+                loss, y_p = get_loss(inp=inp,
+                                    out=out,
+                                    lens=lens,
+                                    cuda=self.cuda,
+                                    gn=self.model,
+                                    glucose_dat=data,
+                                    criterion=self.criterion,
+                                    base=loss_weight_base,
+                                    out_real=out_real,
+                                    value_weight=value_weight,
+                                    value_ratio=value_ratio)
                 step += 1
-                running_train_loss += loss.data.cpu().numpy()[0]
+                running_train_loss += loss.data.cpu().numpy()#[0]
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -149,19 +150,19 @@ class ExperimentTrainer:
         self.model.eval()
         running_valid_loss = 0
         for inp, out, out_real, lens in data_valid:
-            loss, y_p = forecast_model.get_loss(inp=inp,
-                                                out=out,
-                                                lens=lens,
-                                                cuda=True,
-                                                gn=self.model,
-                                                glucose_dat=data,
-                                                criterion=self.criterion,
-                                                base=loss_weight_base,
-                                                out_real=out_real,
-                                                value_weight=value_weight,
-                                                value_ratio=value_ratio)
+            loss, y_p = get_loss(inp=inp,
+                                out=out,
+                                lens=lens,
+                                cuda=self.cuda,
+                                gn=self.model,
+                                glucose_dat=data,
+                                criterion=self.criterion,
+                                base=loss_weight_base,
+                                out_real=out_real,
+                                value_weight=value_weight,
+                                value_ratio=value_ratio)
             step += 1
-            running_valid_loss += loss.data.cpu().numpy()[0]
+            running_valid_loss += loss.data.cpu().numpy()#[0]
         running_valid_loss = running_valid_loss / len(data_valid)
         print('validation loss: {:.3f}'.format(running_valid_loss))
         self.writer.add_scalar(tag='valid_total_loss',
@@ -176,7 +177,10 @@ class ExperimentTrainer:
         metadata = []
         i = 0
         for dat, dat_past, dat_future, init, label in dataloader:
-            x = Variable(dat.float().cuda())
+            if self.cuda:
+                x = Variable(dat.float().cuda())
+            else: 
+                x = Variable(dat.float())
             e = self.model.embed(x).data
             metadata += np.round(label.numpy(), 2).tolist()
             if embeddings is None:
@@ -216,7 +220,10 @@ class ExperimentTrainer:
                 dat_past = [dat_past]
                 dat_future = [dat_future]
             for window in range(len(dat)):
-                x = Variable(dat[window].float().cuda())
+                if self.cuda:
+                    x = Variable(dat[window].float().cuda())
+                else:
+                    x = Variable(dat[window].float())
                 y_pred, x_pres, x_past, x_future = self.model.forward(x)
                 y_pred = y_pred.data.cpu().numpy()
                 if self.decode_present:

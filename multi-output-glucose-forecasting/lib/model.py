@@ -453,7 +453,7 @@ def get_loss(inp,
                 raise ValueError('Got NaN loss')
         else:
             loss = criterion(yd_p_nopad, y_nopad) * loss_weight_nopad
-            if np.isnan(loss.data[0]):
+            if np.isnan(loss.data[0].cpu()):
                 raise ValueError('Got NaN loss')
             if torch.min(y_nopad.data) == -1:
                 print('trouble ahead')

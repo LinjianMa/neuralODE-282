@@ -43,13 +43,13 @@ def add_general_arguments(parser):
     parser.add_argument(
         '--save-interval',
         type=int,
-        default=10,
+        default=5,
         metavar='N',
         help='How many outer loops to wait before saving training state')
     parser.add_argument(
         '--epochs',
         type=int,
-        default=10000,
+        default=100,
         metavar='N',
         help='Number of epochs to train (default: 10000)')
     parser.add_argument(

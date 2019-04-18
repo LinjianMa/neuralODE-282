@@ -21,7 +21,7 @@ class ExperimentTrainer:
     """
 
     def __init__(self, model, optimizer, criterion, name, model_dir, log_dir,
-                 load=False, load_epoch=None, cuda=False):
+                 load=False, load_epoch=None, cuda=False, csv_writer=None):
         """
         :param model: initialized model for training
         :param optimizer: initialized training optimizer
@@ -36,6 +36,7 @@ class ExperimentTrainer:
         self.model_dir = model_dir
         self.log_dir = log_dir
         self.cuda = cuda
+        self.csv_writer = csv_writer
 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
@@ -87,6 +88,8 @@ class ExperimentTrainer:
         bsf_loss = np.inf
         epochs_without_improvement = 0
         improvements = []
+        
+        valid_loss = 0
         for epoch in range(epoch_lim):
             if epochs_without_improvement > early_stopping_lim:
                 print('Exceeded early stopping limit, stopping')
@@ -126,6 +129,11 @@ class ExperimentTrainer:
             self.writer.add_scalar(tag='train_loss',
                                    scalar_value=running_train_loss,
                                    global_step=step)
+
+            self.csv_writer.writerow([
+                f'{epoch}', f'{running_train_loss}', f'{valid_loss}'
+            ])
+
         torch.save(self.model.state_dict(), '{}/final_sup.pt'.format(self.model_dir))
         if track_embeddings:
             self.embed(data_valid, step, embed_batch=100)

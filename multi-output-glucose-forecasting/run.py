@@ -167,6 +167,23 @@ if __name__ == '__main__':
     device = torch.device('cuda:' + str(args.gpu)
                           if torch.cuda.is_available() else 'cpu')
 
+    # Set up CSV logging
+    csv_path = join(results_dir, f'{get_file_prefix(args)}.csv')
+    is_new_log = not Path(csv_path).exists()
+    csv_file = open(csv_path, 'a', newline='')
+    writer = csv.writer(
+        csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    if is_new_log:
+        writer.writerow([
+            'epoch', 'iterations', 'train_loss', 'test_accuracy'
+        ])
+
+    # Set up normal logging
+    root_logger = logging.getLogger()
+    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
+    file_handler = logging.FileHandler(log_path)
+    root_logger.addHandler(file_handler)
+
     # is_odenet = args.network == 'odenet'
 
     # if args.adjoint:
@@ -226,7 +243,8 @@ if __name__ == '__main__':
                                 log_dir=log_dir,
                                 load=False, 
                                 load_epoch=None,
-                                cuda=args.gpu)
+                                cuda=args.gpu,
+                                csv_writer=writer)
 
     trainer.train_sup(epoch_lim=args.epochs, 
                         data=train_data, 
@@ -239,23 +257,6 @@ if __name__ == '__main__':
                         loss_weight_base=1,
                         value_weight=0, 
                         value_ratio=0)
-
-
-
-
-    # transformer = ToDouble if args.double else Identity
-
-    # # Get dataset
-    # train_dataset, test_dataset, num_classes = get_dataset(
-    #     args.dataset, tensor_type_transformer=transformer)
-
-    # train_loader = torch.utils.data.DataLoader(
-    #     train_dataset, batch_size=args.batch_size, shuffle=True)
-    # test_loader = torch.utils.data.DataLoader(
-    #     test_dataset, batch_size=args.test_batch_size, shuffle=False)
-
-    # data_gen = inf_generator(train_loader)
-    # batches_per_epoch = len(train_loader)
 
     # # Initialize optimizer 
     # lr_fn = learning_rate_with_decay(
@@ -274,22 +275,6 @@ if __name__ == '__main__':
     # b_nfe_meter = RunningAverageMeter()
     # end = time.time()
 
-    # # Set up CSV logging
-    # csv_path = join(results_dir, f'{get_file_prefix(args)}.csv')
-    # is_new_log = not Path(csv_path).exists()
-    # csv_file = open(csv_path, 'a', newline='')
-    # writer = csv.writer(
-    #     csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    # if is_new_log:
-    #     writer.writerow([
-    #         'epoch', 'iterations', 'train_loss', 'test_accuracy'
-    #     ])
-
-    # # Set up normal logging
-    # root_logger = logging.getLogger()
-    # log_path = join(results_dir, f'{get_file_prefix(args)}.log')
-    # file_handler = logging.FileHandler(log_path)
-    # root_logger.addHandler(file_handler)
 
     # # Create/load state
     # epoch = 0
@@ -370,10 +355,6 @@ if __name__ == '__main__':
     #                     b_nfe_meter.avg,
     #                     val_acc, 
     #                     train_loss))
-
-    #         writer.writerow([
-    #             f'{epoch}', f'{iterations}', f'{train_loss}', f'{val_acc}'
-    #         ])
 
     #         train_loss = 0.
 

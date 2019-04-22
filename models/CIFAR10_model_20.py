@@ -136,7 +136,8 @@ class BasicODEBlock(nn.Module):
                 x,
                 self.integration_time,
                 rtol=self.args.tol,
-                atol=self.args.tol
+                atol=self.args.tol,
+                method=self.args.method,
                 )
             return out[1]
 

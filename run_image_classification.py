@@ -83,7 +83,23 @@ def add_general_arguments(parser):
             'resnet',
             'odenet'],
         default='odenet')
-    parser.add_argument('--tol', type=float, default=1e-3)
+    parser.add_argument(
+        '--method',
+        type=str,
+        choices=[
+            'explicit_adams', 
+            'fixed_adams', 
+            'adams',
+            'tsit5',
+            'dopri5',
+            'euler',
+            'midpoint',
+            'rk4'],
+        default='dopri5')
+    parser.add_argument(
+        '--tol', 
+        type=float, 
+        default=1e-3)
     parser.add_argument(
         '--adjoint',
         type=eval,
@@ -115,7 +131,7 @@ def add_general_arguments(parser):
         '--lr-decay-epoch',
         type=int,
         nargs='+',
-        default=[30, 60],
+        default=[60, 120],
         help='Decrease learning rate at these epochs.')
     parser.add_argument(
         '--momentum',
@@ -132,8 +148,26 @@ def add_general_arguments(parser):
         help='Weight decay (default: 1e-4)')
 
 def get_file_prefix(args):
+    if args.network == 'odenet':
         return "-".join(filter(None, [
-            args.model_prefix, args.dataset, args.network, 'LR' + str(args.lr)
+            args.model_prefix, 
+            args.dataset, 
+            args.network, 
+            args.method,
+            'LR' + str(args.lr),
+            'momentum' + str(args.momentum),
+            'BS' + str(args.batch_size),
+            'adjoint' + str(args.adjoint),
+            'tol' + str(args.tol),
+        ]))
+    else:
+        return "-".join(filter(None, [
+            args.model_prefix,
+            args.dataset,
+            args.network,
+            'LR' + str(args.lr),
+            'momentum' + str(args.momentum),
+            'BS' + str(args.batch_size),
         ]))
 
 def save(epoch, iterations, model, optimizer, args):
@@ -156,6 +190,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_general_arguments(parser)
     args, _ = parser.parse_known_args()
+
+    # Set up normal logging
+    root_logger = logging.getLogger()
+    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
+    file_handler = logging.FileHandler(log_path)
+    root_logger.addHandler(file_handler)
 
     for arg in vars(args):
         logger.info(f'{arg} {getattr(args, arg)}')
@@ -233,12 +273,6 @@ if __name__ == '__main__':
         writer.writerow([
             'epoch', 'iterations', 'train_loss', 'test_accuracy'
         ])
-
-    # Set up normal logging
-    root_logger = logging.getLogger()
-    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
-    file_handler = logging.FileHandler(log_path)
-    root_logger.addHandler(file_handler)
 
     # Create/load state
     epoch = 0
@@ -323,6 +357,8 @@ if __name__ == '__main__':
             writer.writerow([
                 f'{epoch}', f'{iterations}', f'{train_loss}', f'{val_acc}'
             ])
+
+            csv_file.flush()
 
             train_loss = 0.
 

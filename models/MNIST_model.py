@@ -150,7 +150,9 @@ def MNIST_model(args):
                 x,
                 self.integration_time,
                 rtol=args.tol,
-                atol=args.tol)
+                atol=args.tol,
+                method=args.method,
+                )
             return out[1]
 
         @property

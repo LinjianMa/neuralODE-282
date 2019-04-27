@@ -23,8 +23,14 @@ def add_general_arguments(parser):
         '--method',
         type=str,
         choices=[
+            'explicit_adams', 
+            'fixed_adams', 
+            'adams',
+            'tsit5',
             'dopri5',
-            'adams'],
+            'euler',
+            'midpoint',
+            'rk4'],
         default='dopri5')
     parser.add_argument(
         '--model',
@@ -155,39 +161,43 @@ if __name__ == '__main__':
 
     imgpath = join(results_dir, 'png')
 
-
-    # initial point of the fitter function
-    true_y0 = torch.tensor([[2., 0.]])
-    # true_y0 = torch.tensor([[0.6, 0.3]])
-    plot_range = [-2,2,-2,2]
-
-
     # sample points
     t = torch.linspace(0., 25., args.data_size)
     # true transformer function
     true_A = torch.tensor([[-0.1, 2.0], [-2.0, -0.1]])
 
     from models import Spiral, Spiral_fit, LinearFunc, LinearFunc_fit, Spiral_NN, Spiral_NN_fit
-    model_list = {
-        'spiral': {
-            Spiral(torch.tensor([[-0.1, 2.0], [-2.0, -0.1]])),
-            Spiral_fit(),
-        },
-        'linear': {
-            LinearFunc(),
-            LinearFunc_fit(),
-        },
-        'spiralNN': {
+    true_model_list = {
+        'spiral': Spiral(torch.tensor([[-0.1, 2.0], [-2.0, -0.1]])),
+        'linear': LinearFunc(),
+        'spiralNN':
             Spiral_NN(
                 Tensor([[-0.1, -0.5], [0.5, -0.1]]), 
                 Tensor([[0.2, 1.], [-1, 0.2]]), 
                 Tensor([[-1., 0.]])
                 ),
-            Spiral_NN_fit(2, 16, time_invariant=True),
-        },
     }
+    model_list = {
+        'spiral': Spiral_fit(),
+        'linear': LinearFunc_fit(),
+        'spiralNN': Spiral_NN_fit(2, 16, time_invariant=True),
+    }
+    true_y0_list = {
+        'spiral': torch.tensor([[2., 0.]]),
+        'linear': torch.tensor([[2., 0.]]), 
+        'spiralNN': torch.tensor([[0.6, 0.3]]),
+    }
+    plot_range_list = {
+        'spiral': [-2,2,-2,2],
+        'linear': [-2,2,-2,2], 
+        'spiralNN': [-4,4,-4,4],
+    }
+
+    true_y0 = true_y0_list[args.model]
+    plot_range = plot_range_list[args.model]
     
-    true_func, func = model_list[args.model]
+    true_func = true_model_list[args.model]
+    func = model_list[args.model]
 
     with torch.no_grad():
         true_y = odeint(true_func, true_y0, t, method='dopri5')
@@ -214,7 +224,19 @@ if __name__ == '__main__':
     for itr in range(1, args.niters + 1):
         optimizer.zero_grad()
         batch_y0, batch_t, batch_y = get_batch()
-        pred_y = odeint(func, batch_y0, batch_t)
+        
+        # print(batch_y0.shape)
+        # print(batch_t)
+        # print(func.forward(0, batch_y0).shape)
+        # outputs = [batch_y0 + batch_t[0] * func.forward(0, batch_y0)]
+        # for i in range(1,len(batch_t)):
+        #     output = outputs[i-1] + (batch_t[i]-batch_t[i-1]) * func.forward(batch_t[i-1], outputs[i-1])
+        #     outputs.append(output)
+        # pred_y = [batch_y0 + batch_t[i] * func.forward(0, batch_y0) for i in range(len(batch_t))] 
+        # pred_y1 = torch.cat(outputs, dim=1)
+        # print(pred_y1.shape)
+
+        pred_y = odeint(func, batch_y0, batch_t, method=args.method)
         loss = torch.mean(torch.abs(pred_y - batch_y))
         loss.backward()
         optimizer.step()

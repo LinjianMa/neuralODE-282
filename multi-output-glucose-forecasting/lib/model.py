@@ -226,6 +226,7 @@ class MultiOutputRNN(ForecastRNN):
                 hidden = hidden.cuda()
 
             for i in range(self.decoding_steps):
+                # TODO: add neural ODE block
                 encoded, hidden = self.decoder(encoded, hidden)
                 pred = self.sm(self.output(encoded[0])).contiguous()
                 y.append(pred.view(batch_size,

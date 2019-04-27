@@ -146,6 +146,11 @@ def add_general_arguments(parser):
         type=float,
         metavar='W',
         help='Weight decay (default: 1e-4)')
+    parser.add_argument(
+        '--clip',
+        default=1e3,
+        type=float,
+        help='clipping magnitude')
 
 def get_file_prefix(args):
     if args.network == 'odenet':
@@ -159,6 +164,7 @@ def get_file_prefix(args):
             'BS' + str(args.batch_size),
             'adjoint' + str(args.adjoint),
             'tol' + str(args.tol),
+            'clip' + str(args.clip),
         ]))
     else:
         return "-".join(filter(None, [
@@ -321,6 +327,9 @@ if __name__ == '__main__':
             logger.info(f'nfe_forward is: {nfe_forward}')
 
         loss.backward()
+        # add clipping
+        if is_odenet:
+            nn.utils.clip_grad_norm_(model.parameters(), args.clip, norm_type=2)
         optimizer.step()
 
         if is_odenet:

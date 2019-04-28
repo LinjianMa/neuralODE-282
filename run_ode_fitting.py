@@ -7,6 +7,8 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
+import csv
+from pathlib import Path
 
 from util.utils import RunningAverageMeter, makedirs
 from os.path import dirname, join
@@ -14,7 +16,7 @@ from os.path import dirname, join
 import matplotlib.pyplot as plt
 
 parent_dir = dirname(__file__)
-results_dir = join(parent_dir, 'results')
+results_dir = join(parent_dir, 'results_odefitting')
 logger = logging.getLogger('neuralODE')
 
 def add_general_arguments(parser):
@@ -69,7 +71,12 @@ def add_general_arguments(parser):
         '--adjoint', 
         action='store_true')
 
-
+def get_file_prefix(args):
+    return "-".join(filter(None, [
+        args.model, 
+        args.method,
+        'adjoint' + str(args.adjoint),
+    ]))
 
 def get_batch():
     s = torch.from_numpy(
@@ -81,6 +88,7 @@ def get_batch():
             args.batch_size,
             replace=False))
     batch_y0 = true_y[s]  # (M, D)
+
     batch_t = t[:args.batch_time]  # (T)
     batch_y = torch.stack([true_y[s + i] for i in range(args.batch_time)], dim=0)  # (T, M, D)
     return batch_y0, batch_t, batch_y
@@ -161,10 +169,10 @@ if __name__ == '__main__':
 
     imgpath = join(results_dir, 'png')
 
-    # sample points
-    t = torch.linspace(0., 25., args.data_size)
-    # true transformer function
-    true_A = torch.tensor([[-0.1, 2.0], [-2.0, -0.1]])
+    # # sample points
+    # t = torch.linspace(0., 100., args.data_size)
+    # # true transformer function
+    # true_A = torch.tensor([[-0.1, 2.0], [-2.0, -0.1]])
 
     from models import Spiral, Spiral_fit, LinearFunc, LinearFunc_fit, Spiral_NN, Spiral_NN_fit
     true_model_list = {
@@ -192,12 +200,18 @@ if __name__ == '__main__':
         'linear': [-2,2,-2,2], 
         'spiralNN': [-4,4,-4,4],
     }
+    t_list = {
+        'spiral': torch.linspace(0., 25., args.data_size),
+        'linear': torch.linspace(0., 100., args.data_size), 
+        'spiralNN': torch.linspace(0., 100., args.data_size),    
+    }
 
     true_y0 = true_y0_list[args.model]
     plot_range = plot_range_list[args.model]
     
     true_func = true_model_list[args.model]
     func = model_list[args.model]
+    t = t_list[args.model]
 
     with torch.no_grad():
         true_y = odeint(true_func, true_y0, t, method='dopri5')
@@ -215,16 +229,28 @@ if __name__ == '__main__':
 
     optimizer = optim.Adam(
         func.parameters(), 
-        lr=0.01)
+        lr=0.01,
+        eps=1e-2)
     end = time.time()
 
     time_meter = RunningAverageMeter(0.97)
     loss_meter = RunningAverageMeter(0.97)
 
+    # Set up CSV logging
+    csv_path = join(results_dir, f'{get_file_prefix(args)}.csv')
+    is_new_log = not Path(csv_path).exists()
+    csv_file = open(csv_path, 'a', newline='')
+    writer = csv.writer(
+        csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    if is_new_log:
+        writer.writerow([
+            'epoch', 'train_loss',
+        ])
+
     for itr in range(1, args.niters + 1):
         optimizer.zero_grad()
         batch_y0, batch_t, batch_y = get_batch()
-        
+
         # print(batch_y0.shape)
         # print(batch_t)
         # print(func.forward(0, batch_y0).shape)
@@ -254,4 +280,9 @@ if __name__ == '__main__':
                 visualize(true_y, pred_y, func, ii, imgpath, plot_range)
                 ii += 1
 
+            # write to csv
+            writer.writerow([ f'{itr}', f'{loss.item()}'])
+            csv_file.flush()
+
         end = time.time()
+

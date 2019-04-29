@@ -81,9 +81,10 @@ def add_general_arguments(parser):
         '--network',
         type=str,
         choices=[
-            'rnn',
-            'odenet'],
-        default='rnn')
+            'grutorch',  # gru using the torch module
+            'gru',       # gru using the self-written module
+            'odenet'],   # ODE block
+        default='grutorch')
     parser.add_argument('--tol', 
         type=float, 
         default=1e-3)
@@ -226,7 +227,8 @@ if __name__ == '__main__':
                             autoregressive=False,
                             sequence=args.sequence,
                             polynomial=args.polynomial,
-                            degree=args.degree)
+                            degree=args.degree,
+                            network=args.network)
 
     logger.info(model)
     logger.info('Number of parameters: {}'.format(count_parameters(model)))

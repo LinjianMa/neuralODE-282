@@ -13,6 +13,82 @@ import torch.nn.functional as F
 
 import math
 
+class GRUODEfunc(nn.Module):
+
+    def __init__(self, input_size, hidden_size, bias=True):
+        super(GRUODEfunc, self).__init__()
+
+        self.bias = bias
+        self.x2h = nn.Linear(input_size, 3 * hidden_size, bias=bias)
+        self.h2h = nn.Linear(hidden_size, 3 * hidden_size, bias=bias)
+        self.nfe = 0
+
+    def forward(self, t, x):
+        self.nfe += 1
+
+        gate_x = self.x2h(x) 
+        gate_h = self.h2h(hidden)
+        
+        gate_x = gate_x.squeeze()
+        gate_h = gate_h.squeeze()
+        
+        i_r, i_i, i_n = gate_x.chunk(3, 1)
+        h_r, h_i, h_n = gate_h.chunk(3, 1)
+        
+        resetgate = F.sigmoid(i_r + h_r)
+        inputgate = F.sigmoid(i_i + h_i)
+        newgate = F.tanh(i_n + (resetgate * h_n))
+        
+        hy = (1-inputgate) * (newgate-hidden) 
+        return hy
+
+class GRUODECell(nn.Module):
+
+    """
+    An implementation of GRUCell.
+    """
+
+    def __init__(self, input_size, hidden_size, bias=True, args=None):
+        super(GRUCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.odefunc = GRUODEfunc(input_size, hidden_size, bias)
+        self.reset_parameters()
+        self.args = args
+        self.integration_time = torch.tensor([0, 1]).float()
+
+    def reset_parameters(self):
+        std = 1.0 / math.sqrt(self.hidden_size)
+        for w in self.parameters():
+            w.data.uniform_(-std, std)
+    
+    def forward(self, x, hidden):
+        # print(x.shape)
+        x = x.view(-1, x.size(2))
+
+        if self.args.adjoint:
+            from torchdiffeq import odeint_adjoint as odeint
+        else:
+            from torchdiffeq import odeint
+
+        self.integration_time = self.integration_time.type_as(x)
+        out = odeint(
+            self.odefunc,
+            x,
+            self.integration_time,
+            rtol=self.args.tol,
+            atol=self.args.tol,
+            method=self.args.method,
+            )
+        return out[1]
+
+    @property
+    def nfe(self):
+        return self.odefunc.nfe
+    @nfe.setter
+    def nfe(self, value):
+        self.odefunc.nfe = value
+
 class GRUCell(nn.Module):
 
     """

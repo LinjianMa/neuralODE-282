@@ -225,10 +225,7 @@ if __name__ == '__main__':
                             depth=args.depth,
                             cuda=args.gpu,
                             autoregressive=False,
-                            sequence=args.sequence,
-                            polynomial=args.polynomial,
-                            degree=args.degree,
-                            network=args.network)
+                            args = args,)
 
     logger.info(model)
     logger.info('Number of parameters: {}'.format(count_parameters(model)))

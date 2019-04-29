@@ -5,7 +5,7 @@ import joblib
 import torch
 from torch import nn
 from torch.autograd import Variable
-from .gru import GRUCell
+from .gru import GRUCell, GRUODECell
 
 
 class ForecastRNN(nn.Module):
@@ -177,10 +177,7 @@ class MultiOutputRNN(ForecastRNN):
                  depth, 
                  cuda, 
                  autoregressive=False,
-                 sequence=False,
-                 polynomial=False, 
-                 degree=2,
-                 network='grutorch'):
+                 args,):
         super(MultiOutputRNN, self).__init__(input_dim=input_dim, 
                                              output_dim=output_dim, 
                                              hidden_size=hidden_size, 
@@ -188,10 +185,11 @@ class MultiOutputRNN(ForecastRNN):
                                              output_len=output_len,
                                              cuda=cuda)
         self.ar = autoregressive
-        self.seq = sequence
-        self.polynomial = polynomial
-        self.degree = degree
-        self.network = network
+        self.seq = args.sequence
+        self.polynomial = args.polynomial
+        self.degree = args.degree
+        self.network = args.network
+        self.args = args
 
         if self.polynomial:
             self.decoding_steps = self.degree+1
@@ -210,7 +208,12 @@ class MultiOutputRNN(ForecastRNN):
             elif self.network == 'gru':
                 self.decoder = GRUCell(input_size=hidden_size,
                                       hidden_size=hidden_size,
-                                      bias=True)                
+                                      bias=True)
+            elif self.network == 'odenet':
+                self.decoder = GRUODECell(input_size=hidden_size,
+                                      hidden_size=hidden_size,
+                                      bias=True, 
+                                      args=self.args)               
 
             if self.cuda:
                 self.decoder.cuda()
@@ -243,7 +246,10 @@ class MultiOutputRNN(ForecastRNN):
             for i in range(self.decoding_steps):
                 # size of encoded [batch*inputlength, hidden_size]
                 # for encoded, batch*inputlength elements are independent (here 128 x 101)
-                encoded, hidden = self.decoder(encoded, hidden)
+                if self.network == 'odenet':
+                    encoded = self.decoder(encoded)
+                else:
+                    encoded, hidden = self.decoder(encoded, hidden)
                 # print(encoded.shape,hidden.shape)
                 # print(encoded-hidden)
                 pred = self.sm(self.output(encoded[0])).contiguous()

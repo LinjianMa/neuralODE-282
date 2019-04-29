@@ -21,7 +21,8 @@ class ExperimentTrainer:
     """
 
     def __init__(self, model, optimizer, criterion, name, model_dir, log_dir,
-                 load=False, load_epoch=None, cuda=False, csv_writer=None):
+                 load=False, load_epoch=None, cuda=False, csv_writer=None, csv_file=None,
+                 lr_decay=1, lr_decay_epoch=100):
         """
         :param model: initialized model for training
         :param optimizer: initialized training optimizer
@@ -37,6 +38,9 @@ class ExperimentTrainer:
         self.log_dir = log_dir
         self.cuda = cuda
         self.csv_writer = csv_writer
+        self.csv_file = csv_file
+        self.lr_decay = lr_decay
+        self.lr_decay_epoch = lr_decay_epoch
 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
@@ -133,6 +137,13 @@ class ExperimentTrainer:
             self.csv_writer.writerow([
                 f'{epoch}', f'{running_train_loss}', f'{valid_loss}'
             ])
+            self.csv_file.flush()
+
+            # decay the learning rate
+            if epoch/self.lr_decay_epoch > 0 and epoch%self.lr_decay_epoch==0:
+                print(epoch)
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] *= self.lr_decay
 
         torch.save(self.model.state_dict(), '{}/final_sup.pt'.format(self.model_dir))
         if track_embeddings:

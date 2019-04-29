@@ -51,13 +51,13 @@ def add_general_arguments(parser):
         type=int,
         default=100,
         metavar='N',
-        help='Number of epochs to train (default: 10000)')
+        help='Number of epochs to train (default: 100)')
     parser.add_argument(
         '--batch-size',
         type=int,
-        default=128,
+        default=256,  # 512 will go out of memory
         metavar='N',
-        help='Batch size for training (default: 128)')
+        help='Batch size for training (default: 256)')
     parser.add_argument(
         '--output-len',
         type=int,
@@ -118,18 +118,16 @@ def add_general_arguments(parser):
         default=0.01,
         metavar='LR',
         help='Learning rate (default: 1)')
-    # parser.add_argument(
-    #     '--lr-decay',
-    #     type=int,
-    #     nargs='+',
-    #     default=[1, 0.1, 0.01],
-    #     help='Decrease learning rate at these epochs.')
-    # parser.add_argument(
-    #     '--lr-decay-epoch',
-    #     type=int,
-    #     nargs='+',
-    #     default=[30, 60],
-    #     help='Decrease learning rate at these epochs.')
+    parser.add_argument(
+        '--lr-decay',
+        type=float,
+        default=0.1,
+        help='Decrease learning rate at these epochs.')
+    parser.add_argument(
+        '--lr-decay-epoch',
+        type=int,
+        default=30,   # lr decah at n*30
+        help='Decrease learning rate at these epochs.')
     # parser.add_argument(
     #     '--momentum',
     #     type=float,
@@ -156,6 +154,7 @@ def get_file_prefix(args):
             'BS' + str(args.batch_size),
             'adjoint' + str(args.adjoint),
             'tol' + str(args.tol),
+            'lr-decay' + str(args.lr_decay),
         ]))
     else:
         return "-".join(filter(None, [
@@ -164,6 +163,7 @@ def get_file_prefix(args):
             'LR' + str(args.lr),
             # 'momentum' + str(args.momentum),
             'BS' + str(args.batch_size),
+            'lr-decay' + str(args.lr_decay),
         ]))
 
 # def save(epoch, iterations, model, optimizer, args):
@@ -270,7 +270,10 @@ if __name__ == '__main__':
                                 load=False, 
                                 load_epoch=None,
                                 cuda=args.gpu,
-                                csv_writer=writer)
+                                csv_writer=writer,
+                                csv_file=csv_file,
+                                lr_decay = args.lr_decay,
+                                lr_decay_epoch = args.lr_decay_epoch)
 
     trainer.train_sup(epoch_lim=args.epochs, 
                         data=train_data, 

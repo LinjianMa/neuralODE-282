@@ -214,7 +214,7 @@ if __name__ == '__main__':
         csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     if is_new_log:
         writer.writerow([
-            'epoch', 'train_loss', 'test_accuracy'
+            'epoch', 'train_loss', 'valid_loss'
         ])
 
     # import the model 

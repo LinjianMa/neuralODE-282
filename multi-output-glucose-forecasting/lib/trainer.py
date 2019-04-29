@@ -157,6 +157,7 @@ class ExperimentTrainer:
     def validation(self, data_valid, step, data, loss_weight_base, value_weight, value_ratio):
         self.model.eval()
         running_valid_loss = 0
+        # inp means input
         for inp, out, out_real, lens in data_valid:
             loss, y_p = get_loss(inp=inp,
                                 out=out,

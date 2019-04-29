@@ -15,6 +15,8 @@ class ForecastRNN(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_size, depth, output_len=-1, cuda=False):
         super(ForecastRNN, self).__init__()
         self.cuda = cuda
+        # gru forward: seq and output has the same size
+        # each output unit o[t] is based on i[0:t] 
         self.rnn = nn.GRU(input_size=input_dim,
                           hidden_size=hidden_size,
                           num_layers=depth,
@@ -61,12 +63,15 @@ class ForecastRNN(nn.Module):
                          requires_grad=False)
         # predict within the sequence
         out, h = self.rnn.forward(seq, h)
+        # print(seq)
+        # print(out)
         if pack:
             out, lens = nn.utils.rnn.pad_packed_sequence(out, batch_first=True, padding_value=-1)
         else:
             lens = None
         # out has dim (batch_size, sequence_length, hidden_size)
         out_flat = out.contiguous().view(-1, self.rnn.hidden_size)
+        # print(out_flat.shape)
         return out_flat, h, lens
     
     def _extract_final_dist(self, pack, batch_size, y, lens):
@@ -220,13 +225,15 @@ class MultiOutputRNN(ForecastRNN):
         if self.seq:
             y = []
             encoded = out_flat[None, :]
-
+            # print(encoded.shape)
             hidden = Variable(torch.zeros(encoded.data.shape))
             if self.cuda:
                 hidden = hidden.cuda()
 
             for i in range(self.decoding_steps):
                 # TODO: add neural ODE block
+                # size of encoded [batch*inputlength, hidden_size]
+                # for encoded, batch*inputlength elements are independent (here 128 x 101)
                 encoded, hidden = self.decoder(encoded, hidden)
                 pred = self.sm(self.output(encoded[0])).contiguous()
                 y.append(pred.view(batch_size,
@@ -375,12 +382,12 @@ def remove_prediction_padding_old(prediction_distribution,
     return ret
 
 
-def get_loss(inp,
+def get_loss(inp, # input
              out,
              out_real,
              lens,
              cuda,
-             gn,
+             gn, # model
              glucose_dat,
              criterion,
              base=1,
@@ -404,6 +411,8 @@ def get_loss(inp,
                                                      batch_l=lens_s,
                                                      cuda=cuda,
                                                      real_values=glucose_dat.real_values)
+    # print(inp_s.shape)
+    # pack is used to produce different input for different x position
     x = nn.utils.rnn.pack_padded_sequence(inp_s.view(batch_size_val, 
                                                      glucose_dat.max_pad,
                                                      1), 

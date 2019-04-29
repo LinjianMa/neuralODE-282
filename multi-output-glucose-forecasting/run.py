@@ -77,28 +77,36 @@ def add_general_arguments(parser):
         metavar='M',
         help='Where to load the trained model if the file exists. Empty means it starts from scratch'
     )
-    # parser.add_argument(
-    #     '--network',
-    #     type=str,
-    #     choices=[
-    #         'resnet',
-    #         'odenet'],
-    #     default='odenet')
-    # parser.add_argument('--tol', type=float, default=1e-3)
-    # parser.add_argument(
-    #     '--adjoint',
-    #     type=eval,
-    #     default=False,
-    #     choices=[
-    #         True,
-    #         False])
-    # parser.add_argument(
-    #     '--downsampling-method',
-    #     type=str,
-    #     default='conv',
-    #     choices=[
-    #         'conv',
-    #         'res'])
+    parser.add_argument(
+        '--network',
+        type=str,
+        choices=[
+            'rnn',
+            'odenet'],
+        default='rnn')
+    parser.add_argument('--tol', 
+        type=float, 
+        default=1e-3)
+    parser.add_argument(
+        '--adjoint',
+        type=eval,
+        default=False,
+        choices=[
+            True,
+            False])
+    parser.add_argument(
+        '--method',
+        type=str,
+        choices=[
+            'explicit_adams', 
+            'fixed_adams', 
+            'adams',
+            'tsit5',
+            'dopri5',
+            'euler',
+            'midpoint',
+            'rk4'],
+        default='dopri5')
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--sequence', type=int, default=1)
     parser.add_argument('--polynomial', type=int, default=0)
@@ -121,12 +129,12 @@ def add_general_arguments(parser):
     #     nargs='+',
     #     default=[30, 60],
     #     help='Decrease learning rate at these epochs.')
-    parser.add_argument(
-        '--momentum',
-        type=float,
-        default=0.9,
-        metavar='M',
-        help='Momentum (default: 0.9)')
+    # parser.add_argument(
+    #     '--momentum',
+    #     type=float,
+    #     default=0.9,
+    #     metavar='M',
+    #     help='Momentum (default: 0.9)')
     parser.add_argument(
         '--weight-decay',
         '--wd',
@@ -135,9 +143,26 @@ def add_general_arguments(parser):
         metavar='W',
         help='Weight decay (default: 1e-5)')
 
+
 def get_file_prefix(args):
+    if args.network == 'odenet':
         return "-".join(filter(None, [
-            args.model_prefix, 'LR' + str(args.lr)
+            args.model_prefix, 
+            args.network, 
+            args.method,
+            'LR' + str(args.lr),
+            # 'momentum' + str(args.momentum),
+            'BS' + str(args.batch_size),
+            'adjoint' + str(args.adjoint),
+            'tol' + str(args.tol),
+        ]))
+    else:
+        return "-".join(filter(None, [
+            args.model_prefix,
+            args.network,
+            'LR' + str(args.lr),
+            # 'momentum' + str(args.momentum),
+            'BS' + str(args.batch_size),
         ]))
 
 # def save(epoch, iterations, model, optimizer, args):
@@ -161,11 +186,24 @@ if __name__ == '__main__':
     add_general_arguments(parser)
     args, _ = parser.parse_known_args()
 
+    # Set up normal logging
+    root_logger = logging.getLogger()
+    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
+    file_handler = logging.FileHandler(log_path)
+    root_logger.addHandler(file_handler)
+
     for arg in vars(args):
         logger.info(f'{arg} {getattr(args, arg)}')
 
     device = torch.device('cuda:' + str(args.gpu)
                           if torch.cuda.is_available() else 'cpu')
+
+    is_odenet = args.network == 'odenet'
+
+    if args.adjoint:
+        from torchdiffeq import odeint_adjoint as odeint
+    else:
+        from torchdiffeq import odeint
 
     # Set up CSV logging
     csv_path = join(results_dir, f'{get_file_prefix(args)}.csv')
@@ -175,22 +213,8 @@ if __name__ == '__main__':
         csv_file, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
     if is_new_log:
         writer.writerow([
-            'epoch', 'iterations', 'train_loss', 'test_accuracy'
+            'epoch', 'train_loss', 'test_accuracy'
         ])
-
-    # Set up normal logging
-    root_logger = logging.getLogger()
-    log_path = join(results_dir, f'{get_file_prefix(args)}.log')
-    file_handler = logging.FileHandler(log_path)
-    root_logger.addHandler(file_handler)
-
-    # is_odenet = args.network == 'odenet'
-
-    # if args.adjoint:
-    #     from torchdiffeq import odeint_adjoint as odeint
-    # else:
-    #     from torchdiffeq import odeint
-
 
     # import the model 
     model = MultiOutputRNN(input_dim=1,

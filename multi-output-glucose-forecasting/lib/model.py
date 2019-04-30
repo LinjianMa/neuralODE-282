@@ -177,7 +177,7 @@ class MultiOutputRNN(ForecastRNN):
                  depth, 
                  cuda, 
                  autoregressive=False,
-                 args,):
+                 args=None,):
         super(MultiOutputRNN, self).__init__(input_dim=input_dim, 
                                              output_dim=output_dim, 
                                              hidden_size=hidden_size, 
@@ -250,9 +250,8 @@ class MultiOutputRNN(ForecastRNN):
                     encoded = self.decoder(encoded)
                 else:
                     encoded, hidden = self.decoder(encoded, hidden)
-                # print(encoded.shape,hidden.shape)
-                # print(encoded-hidden)
                 pred = self.sm(self.output(encoded[0])).contiguous()
+
                 y.append(pred.view(batch_size,
                                    sequence_length,
                                    1,

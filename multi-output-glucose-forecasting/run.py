@@ -15,8 +15,6 @@ from os.path import dirname, join
 from lib.model import *
 from lib.trainer import *
 from lib.glucose_dataset import *
-# from util.utils import get_dataset, RunningAverageMeter, inf_generator, learning_rate_with_decay, one_hot, accuracy, count_parameters
-# from util.transforms import ToDouble, Identity
 
 parent_dir = dirname(__file__)
 results_dir = join(parent_dir, 'results')
@@ -166,20 +164,6 @@ def get_file_prefix(args):
             'lr-decay' + str(args.lr_decay),
         ]))
 
-# def save(epoch, iterations, model, optimizer, args):
-#     state = {
-#         'epoch': epoch,
-#         'iterations': iterations,
-#         'model': model.state_dict(),
-#         'optimizer': optimizer.state_dict(),
-#     }
-#     state_string = "-".join(
-#         k + "=" + str(v) for k, v in state.items() if k == 'epoch')
-
-#     location = join(results_dir, get_file_prefix(args) + '-s-' + state_string)
-#     torch.save(state, location)
-#     logger.info(f'Saved to {location}')
-
 
 if __name__ == '__main__':
 
@@ -284,106 +268,3 @@ if __name__ == '__main__':
                         value_weight=0, 
                         value_ratio=0)
 
-    # # Initialize optimizer 
-    # lr_fn = learning_rate_with_decay(
-    #     args.lr,
-    #     args.batch_size,
-    #     batch_denom=128,
-    #     batches_per_epoch=batches_per_epoch,
-    #     boundary_epochs=args.lr_decay_epoch,
-    #     decay_rates=args.lr_decay
-    # )
-
-
-    # best_acc = 0
-    # batch_time_meter = RunningAverageMeter()
-    # f_nfe_meter = RunningAverageMeter()
-    # b_nfe_meter = RunningAverageMeter()
-    # end = time.time()
-
-
-    # # Create/load state
-    # epoch = 0
-    # iterations = 0
-    # if args.load_model is not '':
-    #     try:
-    #         state_file = args.load_model
-    #         state = torch.load(state_file)
-
-    #         epoch = state['epoch']
-    #         iterations = state['iterations']
-
-    #         model.load_state_dict(state['model'])
-
-    #         logger.info(f'Loaded state from file {state_file}')
-    #     except FileNotFoundError:
-    #         raise FileNotFoundError(f'No model exist on: {args.load_model}')
-
-    # train_loss = 0.0
-
-    # logger.info(f'Numer of batches per epoch: {batches_per_epoch}')
-    # while iterations < (args.epochs * batches_per_epoch):
-
-    #     logger.info(f'Iteration number: {iterations}')
-
-    #     iterations += 1
-
-    #     for param_group in optimizer.param_groups:
-    #         param_group['lr'] = lr_fn(iterations)
-
-    #     optimizer.zero_grad()
-    #     x, y = data_gen.__next__()
-    #     if args.gpu:
-    #         x = x.cuda()
-    #         y = y.cuda()
-    #     logits = model(x)
-    #     loss = criterion(logits, y)
-    #     train_loss += loss
-
-    #     if is_odenet:
-    #         nfe_forward = 0.
-    #         for index in odelayer_indexes:
-    #             nfe_forward += model[index].nfe
-    #             model[index].nfe = 0 
-    #         nfe_forward = nfe_forward / len(odelayer_indexes)
-    #         logger.info(f'nfe_forward is: {nfe_forward}')
-
-    #     loss.backward()
-    #     optimizer.step()
-
-    #     if is_odenet:
-    #         nfe_backward = 0.
-    #         for index in odelayer_indexes:
-    #             nfe_backward += model[index].nfe
-    #             model[index].nfe = 0 
-    #         nfe_backward = nfe_backward / len(odelayer_indexes)
-    #         logger.info(f'nfe_backward is: {nfe_backward}')
-
-    #     batch_time_meter.update(time.time() - end)
-    #     if is_odenet:
-    #         f_nfe_meter.update(nfe_forward)
-    #         b_nfe_meter.update(nfe_backward)
-    #     end = time.time()
-
-    #     if iterations % batches_per_epoch == 0:
-    #         train_loss /= batches_per_epoch
-    #         epoch += 1
-
-    #         with torch.no_grad():
-    #             val_acc = accuracy(model, test_loader, args)
-    #             logger.info(
-    #                 "Epoch {:04d} | Time {:.3f} ({:.3f}) | NFE-F {:.1f} | NFE-B {:.1f} | "
-    #                 "Test Acc {:.4f} | Training Loss {:.4f}".format(
-    #                     iterations // batches_per_epoch,
-    #                     batch_time_meter.val,
-    #                     batch_time_meter.avg,
-    #                     f_nfe_meter.avg,
-    #                     b_nfe_meter.avg,
-    #                     val_acc, 
-    #                     train_loss))
-
-    #         train_loss = 0.
-
-    #         # Save state to file
-    #         if epoch % args.save_interval == 0:
-    #             save(epoch, iterations, model, optimizer, args)

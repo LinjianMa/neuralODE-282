@@ -5,4 +5,4 @@ torchdiffeq.egg-info
 __pycache__
 logs
 results
-
+*.pdf
